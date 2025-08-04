@@ -134,6 +134,7 @@ CONFIG = {
     "encryption_config": {"gce_pd_kms_key_name": "customer_managed_key"},
     "autoscaling_config": {"policy_uri": "autoscaling_policy"},
     "config_bucket": "storage_bucket",
+    "cluster_tier" : "CLUSTER_TIER_STANDARD",
     "initialization_actions": [
         {"executable_file": "init_actions_uris", "execution_timeout": {"seconds": 600}}
     ],
@@ -754,6 +755,12 @@ class TestsClusterGenerator:
             )
             cluster = generator.make()
             assert cluster["gce_cluster_config"]["internal_ip_only"] == internal_ip_only
+    
+    def test_build_with_cluster_tier(self):
+        generator = ClusterGenerator(project_id="project_id", cluster_tier="CLUSTER_TIER_STANDARD")
+        cluster = generator.make()
+        assert cluster["cluster_tier"] == "CLUSTER_TIER_STANDARD"
+
 
 
 class TestDataprocCreateClusterOperator(DataprocClusterTestBase):
