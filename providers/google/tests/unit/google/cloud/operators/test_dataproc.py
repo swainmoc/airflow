@@ -605,6 +605,7 @@ class TestsClusterGenerator:
             customer_managed_key="customer_managed_key",
             driver_pool_id="cluster_driver_pool",
             driver_pool_size=2,
+            cluster_tier = "CLUSTER_TIER_STANDARD"
         )
         cluster = generator.make()
         assert cluster == CONFIG
