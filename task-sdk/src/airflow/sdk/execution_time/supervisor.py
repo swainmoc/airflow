@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import atexit
 import contextlib
+import functools
 import io
 import logging
 import os
@@ -1096,8 +1097,11 @@ class ActivitySubprocess(WatchedSubprocess):
         """
         from airflow.sdk.log import upload_to_remote
 
-        with _remote_logging_conn(self.client):
-            upload_to_remote(self.process_log, self.ti)
+        try:
+            with _remote_logging_conn(self.client):
+                upload_to_remote(self.process_log, self.ti)
+        except Exception:
+            self.process_log.exception("Failed to upload remote logs", ti_id=self.id, pid=self.pid)
 
     def _monitor_subprocess(self):
         """
@@ -1530,6 +1534,7 @@ class ActivitySubprocess(WatchedSubprocess):
         child_logs.close()  # Close this end now.
 
 
+@functools.lru_cache(maxsize=1)
 def in_process_api_server():
     from airflow.api_fastapi.execution_api.app import InProcessExecutionAPI
 
@@ -1691,8 +1696,9 @@ class InProcessTestSupervisor(ActivitySubprocess):
     @staticmethod
     def _api_client(dag=None):
         api = in_process_api_server()
+        from airflow.api_fastapi.common.dagbag import dag_bag_from_app
+
         if dag is not None:
-            from airflow.api_fastapi.common.dagbag import dag_bag_from_app
             from airflow.models.dagbag import DBDagBag
 
             # This is needed since the Execution API server uses the DBDagBag in its "state".
@@ -1700,6 +1706,8 @@ class InProcessTestSupervisor(ActivitySubprocess):
             dag_bag = DBDagBag()
 
             api.app.dependency_overrides[dag_bag_from_app] = lambda: dag_bag
+        else:
+            api.app.dependency_overrides.pop(dag_bag_from_app, None)
 
         client = InProcessTestSupervisor._Client(
             base_url=None, token="", dry_run=True, transport=api.transport
