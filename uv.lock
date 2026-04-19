@@ -12,7 +12,7 @@ resolution-markers = [
 ]
 
 [options]
-exclude-newer = "2026-04-13T06:48:54.989850866Z"
+exclude-newer = "2026-04-15T18:00:32.30474737Z"
 exclude-newer-span = "P4D"
 
 [options.exclude-newer-package]
@@ -5153,7 +5153,7 @@ requires-dist = [
     { name = "google-cloud-dataflow-client", specifier = ">=0.8.6" },
     { name = "google-cloud-dataform", specifier = ">=0.5.0" },
     { name = "google-cloud-dataplex", specifier = ">=2.6.0" },
-    { name = "google-cloud-dataproc", specifier = ">=5.25.0" },
+    { name = "google-cloud-dataproc", specifier = ">=5.27.0" },
     { name = "google-cloud-dataproc-metastore", specifier = ">=1.12.0" },
     { name = "google-cloud-dlp", specifier = ">=3.12.0" },
     { name = "google-cloud-kms", specifier = ">=2.15.0" },
@@ -11946,7 +11946,7 @@ wheels = [
 
 [[package]]
 name = "google-cloud-dataproc"
-version = "5.26.0"
+version = "5.27.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "google-api-core", extra = ["grpc"] },
@@ -11956,9 +11956,9 @@ dependencies = [
     { name = "proto-plus" },
     { name = "protobuf" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/75/63/69cd18eaf1e6bb210bb576fe1d83087d2e323b6312f08d4f69a1754d02b6/google_cloud_dataproc-5.26.0.tar.gz", hash = "sha256:6cf3a695cf5db2d729ef2cb2a51c92930b950ef6857c893e206eb6dc9de885cf", size = 588763, upload-time = "2026-03-30T22:51:08.951Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/37/93/fd399cba4c7cc9b2b56f0f686b8bf810fe374e2b6fa4682a59b9661885d1/google_cloud_dataproc-5.27.0.tar.gz", hash = "sha256:4ed0b248f0f825ce8ed3d29ddd50fa4962321b70cb045416962c1ba7b74b46ec", size = 589166, upload-time = "2026-04-13T22:27:17.991Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/46/2c/3a0c73af9a9807e987e53ed2d718bdd32e3913a745c37518373050510a73/google_cloud_dataproc-5.26.0-py3-none-any.whl", hash = "sha256:a31c67c520121356a6e59f0a6c5f07de6b27ef69ba6e7f0872c66b3f6efb0937", size = 493940, upload-time = "2026-03-30T20:02:35.333Z" },
+    { url = "https://files.pythonhosted.org/packages/fd/da/f4b6723f048c2b89466e7a978338954fc4ed4f501c94bd6c97ec49fd8526/google_cloud_dataproc-5.27.0-py3-none-any.whl", hash = "sha256:7eec2ee649ab28747d304a3acf26a78f0703d73ea8f93a4cb85039fee4f4864f", size = 494239, upload-time = "2026-04-13T22:27:15.981Z" },
 ]
 
 [[package]]
@@ -19963,8 +19963,8 @@ name = "secretstorage"
 version = "3.5.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "cryptography" },
-    { name = "jeepney" },
+    { name = "cryptography", marker = "(python_full_version < '3.14' and sys_platform == 'emscripten') or (python_full_version < '3.14' and sys_platform == 'win32') or (sys_platform != 'emscripten' and sys_platform != 'win32')" },
+    { name = "jeepney", marker = "(python_full_version < '3.14' and sys_platform == 'emscripten') or (python_full_version < '3.14' and sys_platform == 'win32') or (sys_platform != 'emscripten' and sys_platform != 'win32')" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/1c/03/e834bcd866f2f8a49a85eaff47340affa3bfa391ee9912a952a1faa68c7b/secretstorage-3.5.0.tar.gz", hash = "sha256:f04b8e4689cbce351744d5537bf6b1329c6fc68f91fa666f60a380edddcd11be", size = 19884, upload-time = "2025-11-23T19:02:53.191Z" }
 wheels = [
