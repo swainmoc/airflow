@@ -24,9 +24,11 @@
 - [The airflow-ctl distributions](#the-airflow-ctl-distributions)
 - [Perform review of security issues that are marked for the release](#perform-review-of-security-issues-that-are-marked-for-the-release)
 - [Decide when to release](#decide-when-to-release)
+- [Releasing from `main` vs a maintenance branch](#releasing-from-main-vs-a-maintenance-branch)
 - [Airflow-ctl versioning](#airflow-ctl-versioning)
 - [Prepare Regular airflow-ctl distributions (RC)](#prepare-regular-airflow-ctl-distributions-rc)
-  - [Generate release notes](#generate-release-notes)
+  - [Bump the version and generate release notes](#bump-the-version-and-generate-release-notes)
+  - [Commit the version bump and release notes via a merged PR](#commit-the-version-bump-and-release-notes-via-a-merged-pr)
   - [Build airflow-ctl distributions for SVN apache upload](#build-airflow-ctl-distributions-for-svn-apache-upload)
   - [Build and sign the source and convenience packages](#build-and-sign-the-source-and-convenience-packages)
   - [Add tags in git](#add-tags-in-git)
@@ -42,7 +44,7 @@
   - [Summarize the voting for the Apache Airflow release](#summarize-the-voting-for-the-apache-airflow-release)
   - [Publish release to SVN](#publish-release-to-svn)
   - [Publish the packages to PyPI](#publish-the-packages-to-pypi)
-  - [Add tags in git](#add-tags-in-git-1)
+  - [Add the final release tag in git](#add-the-final-release-tag-in-git)
   - [Publish documentation](#publish-documentation)
   - [Notify developers of release](#notify-developers-of-release)
   - [Send announcements about security issues fixed in the release](#send-announcements-about-security-issues-fixed-in-the-release)
@@ -91,6 +93,38 @@ and security team should be pinged to review and resolve them.
 You can release `airflow-ctl` distributions separately from the main Airflow on an ad-hoc basis,
 whenever we find that airflow-ctl needs to be released - due to new features or due to bug fixes.
 
+# Releasing from `main` vs a maintenance branch
+
+By default the release is cut from `main`. Occasionally an airflow-ctl release
+needs to happen from a maintenance branch — for example `v3-2-test` — when an
+older Airflow line carries airflow-ctl fixes that have **not** yet reached
+`main`, or when `main` has diverged in a way that is not release-ready.
+
+Before deciding, compare airflow-ctl commits on the two branches:
+
+```shell script
+# Any airflow-ctl commits on the maintenance branch not (by PR) on main?
+git log --oneline airflow-ctl/${PREVIOUS_VERSION}..apache/v3-2-test -- airflow-ctl/
+git log --oneline airflow-ctl/${PREVIOUS_VERSION}..apache/main -- airflow-ctl/
+```
+
+If every airflow-ctl PR on `v3-2-test` is already on `main` (either as the
+original commit or as a backport of it), release from `main`. If the
+maintenance branch carries commits that are **not** on `main`, you must
+release from the maintenance branch — releasing from `main` would silently
+drop those commits from the user-visible release.
+
+When releasing from a maintenance branch, substitute `apache/<branch>` for
+`apache/main` everywhere below. In particular:
+
+- The release-prep PR (`Commit the version bump and release notes via a
+  merged PR`) targets the maintenance branch, not `main`.
+- `git tag -s airflow-ctl/${VERSION_RC} <maintenance-branch-commit>` — the
+  tag must point at a commit on the maintenance branch.
+- After the release lands, forward-port any doc / fix PRs created during the
+  release (for example, a follow-up PR fixing an ambiguity in this document)
+  to `main` so they do not get lost.
+
 # Airflow-ctl versioning
 
 We are using the [SEMVER](https://semver.org/) versioning scheme for the `airflow-ctl` distributions. This is in order
@@ -122,17 +156,31 @@ echo "Previous: ${PREVIOUS_VERSION}  Current: ${VERSION}  RC: ${VERSION_RC}"
 
 # Prepare Regular airflow-ctl distributions (RC)
 
-## Generate release notes
+## Bump the version and generate release notes
 
-Generate the RST changelog for the new release by running:
+The `apache-airflow-ctl` version is read by `hatch` from
+`airflow-ctl/src/airflowctl/__init__.py` (`[tool.hatch.version].path` in
+`airflow-ctl/pyproject.toml`). Before anything else, bump it to the version you
+are releasing:
 
 ```shell script
-breeze release-management generate-airflowctl-changelog --previous-release "airflow-ctl/${PREVIOUS_VERSION}" --version "${VERSION}"
+sed -i.bak -E "s/^__version__ = \".*\"/__version__ = \"${VERSION}\"/" \
+    ${AIRFLOW_REPO_ROOT:-$(pwd -P)}/airflow-ctl/src/airflowctl/__init__.py
+rm ${AIRFLOW_REPO_ROOT:-$(pwd -P)}/airflow-ctl/src/airflowctl/__init__.py.bak
+```
+
+Then generate the RST changelog for the new release by running:
+
+```shell script
+GITHUB_TOKEN=$(gh auth token) \
+    breeze release-management generate-airflowctl-changelog \
+        --previous-release "airflow-ctl/${PREVIOUS_VERSION}" \
+        --version "${VERSION}"
 ```
 
 `--current-release` defaults to `HEAD` so you do not need to tag first.
-The command fetches PR metadata from GitHub (using `gh auth token` or `GITHUB_TOKEN`) and
-categorises each merged PR into one of:
+The command fetches PR metadata from GitHub (using `GITHUB_TOKEN` or
+`gh auth token`) and categorises each merged PR into one of:
 
 - **Significant Changes** — PRs whose title starts with `feat`, `add`, or `allow`
 - **Bug Fixes** — PRs whose title starts with `fix`
@@ -143,7 +191,57 @@ By default, the new section is **prepended** to `airflow-ctl/RELEASE_NOTES.rst` 
 previous version entry. Pass `--output-file -` to print to stdout instead, or
 `--output-file <path>` to write to a different file.
 
-Review the changes to `airflow-ctl/RELEASE_NOTES.rst` and commit before proceeding.
+The auto-categorisation is a best-effort keyword match, so **manual review of
+the generated section is required**. Typical cleanups:
+
+- Move CI / build / dependency-bump entries out of *Significant Changes* or
+  *Improvements* and into *Miscellaneous* — or drop the *Miscellaneous* section
+  entirely, since its items have no user impact.
+- Strip leaked branch prefixes (`[main]`, `[v3-X-test]`) from PR titles.
+- Security fixes sometimes land in *Improvements*; move them to *Bug Fixes*.
+- API-server-only changes that touched only `airflowctl` datamodels can be
+  re-worded to make the "datamodels only" scope clear, or dropped if they are
+  not user-observable through the CLI.
+- Also clean up any stale files in `airflow-ctl/newsfragments/` that describe
+  changes already released in a previous version. The changelog generator does
+  **not** consume newsfragments — it works off `git log` — so stale fragments
+  will not appear in the generated output, but they mislead readers.
+
+## Commit the version bump and release notes via a merged PR
+
+The release tag must point at a commit on `main` (or the maintenance branch
+you are releasing from) that contains both the bumped `__version__` and the
+new `RELEASE_NOTES.rst` section. This means the release-prep changes MUST be
+merged to the target branch before tagging:
+
+```shell script
+cd ${AIRFLOW_REPO_ROOT:-$(pwd -P)}
+git checkout -b "prepare-airflow-ctl-${VERSION_RC}"
+git add airflow-ctl/src/airflowctl/__init__.py airflow-ctl/RELEASE_NOTES.rst
+# Also `git rm` any stale newsfragments you cleaned up
+git commit -m "Prepare airflow-ctl ${VERSION_RC} release"
+
+# Push to your fork (NOT to apache)
+git push -u origin "prepare-airflow-ctl-${VERSION_RC}"
+
+# Open the PR in the browser, pre-filled
+gh pr create --web \
+    --title "Prepare airflow-ctl ${VERSION_RC} release" \
+    --body "Bump \`__version__\` to ${VERSION} and regenerate \`RELEASE_NOTES.rst\`."
+```
+
+Wait for CI to pass and for the PR to be merged to the target branch (`main`
+for a regular release, or the maintenance branch for a backport release).
+**Do not tag until the PR is merged** — the tag must point at the merge
+commit.
+
+After the PR merges, pull the target branch before continuing so that your
+local `HEAD` matches the commit you are about to tag:
+
+```shell script
+git checkout main  # or v3-X-test for maintenance releases
+git pull apache main
+```
 
 ## Build airflow-ctl distributions for SVN apache upload
 
@@ -181,6 +279,11 @@ rm -rf ${AIRFLOW_REPO_ROOT}/dist/*
 
 Assume that your remote for apache repository is called `apache` you should now
 set tags for the airflow-ctl in the repo.
+
+**Prerequisite:** the version-bump + release-notes PR from "Commit the version
+bump and release notes via a merged PR" must already be merged, and your local
+target branch must be fast-forwarded to that merge commit. The tag should
+point at that commit.
 
 Sometimes in cases when there is a connectivity issue to GitHub, it might be possible that local tags get created
 and lead to annoying errors. The default behaviour would be to clean such local tags up.
@@ -391,11 +494,35 @@ list and stable links should be updated, also Fastly cache will be invalidated.
 
 ## Prepare issue in GitHub to keep status of testing
 
-Generate the GitHub issue body that asks contributors to test the RC:
+Generate the GitHub issue body that asks contributors to test the RC (the
+command falls back to the local `gh auth token` if `GITHUB_TOKEN` is not
+already exported, so no env setup is required):
 
 ```shell script
-breeze release-management generate-issue-content-airflow-ctl --previous-release "airflow-ctl/${PREVIOUS_VERSION}" --current-release "airflow-ctl/${VERSION_RC}"
+breeze release-management generate-issue-content-airflow-ctl \
+    --previous-release "airflow-ctl/${PREVIOUS_VERSION}" \
+    --current-release "airflow-ctl/${VERSION_RC}" \
+    > /tmp/issue_airflowctl_${VERSION_RC}.md
 ```
+
+Review `/tmp/issue_airflowctl_${VERSION_RC}.md` — it lists every airflow-ctl
+PR merged between the two refs with the contributors tagged, plus a summary
+line at the bottom. Edit if any of the auto-tagged contributors should not
+be pinged on a test-status issue.
+
+Then open the issue in `apache/airflow` with the standard `testing status`
+label:
+
+```shell script
+gh issue create --repo apache/airflow \
+    --title "Status of testing of Apache Airflow CTL ${VERSION_RC}" \
+    --body-file /tmp/issue_airflowctl_${VERSION_RC}.md \
+    --label "testing status"
+```
+
+Keep the URL returned by the command — you will reference it in the voting
+email (next section) and in the `Close the testing status issue` step at
+the end of the release.
 
 ## Prepare voting email for airflow-ctl release candidate
 
@@ -835,6 +962,15 @@ do
  svn mv "${file}" "${base_file//rc[0-9]/}"
 done
 
+# Prune older airflow-ctl release folders. Move UP one level first — the
+# script operates on its current working directory and prunes version-named
+# subdirectories, keeping only the latest version. Inside the new
+# ${VERSION} folder there are only artifact files, so we must run it from
+# asf-dist/release/airflow/airflow-ctl/ (parent). The script's scope is
+# limited to cwd, so it will NOT touch sibling directories such as the
+# airflow, helm-chart, or provider release folders.
+cd ..
+
 # Check which directories are going to be removed. Check if this looks right
 uv run "${AIRFLOW_REPO_ROOT}/dev/prune_old_dirs.py"
 
@@ -892,7 +1028,7 @@ Copy links to updated package and save it on the side. You will need it for the 
 * Again, confirm that the packages are available under the links printed.
 
 
-## Add tags in git
+## Add the final release tag in git
 
 Assume that your remote for apache repository is called `apache` you should now
 set tags for airflow-ctl in the repo.
