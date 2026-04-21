@@ -5228,7 +5228,7 @@ requires-dist = [
     { name = "google-cloud-memcache", specifier = ">=1.7.0" },
     { name = "google-cloud-monitoring", specifier = ">=2.18.0" },
     { name = "google-cloud-orchestration-airflow", specifier = ">=1.10.0" },
-    { name = `"google-cloud-os-login", specifier = ">=2.9.1" },
+    { name = "google-cloud-os-login", specifier = ">=2.9.1" },
     { name = "google-cloud-pubsub", specifier = ">=2.24.0" },
     { name = "google-cloud-redis", specifier = ">=2.12.0" },
     { name = "google-cloud-run", specifier = ">=0.10.0" },
